@@ -32,6 +32,7 @@ pub mod insert;
 pub mod delete;
 pub mod value;
 mod util;
+pub mod query;
 
 // private modules
 
