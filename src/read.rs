@@ -1,5 +1,7 @@
 /// The Toml Read extensions
 
+#[cfg(feature = "typed")]
+use serde::Deserialize;
 use toml::Value;
 
 use tokenizer::tokenize_with_seperator;
@@ -25,6 +27,18 @@ pub trait TomlValueReadExt<'doc> {
         self.read_mut_with_seperator(query, '.')
     }
 
+    #[cfg(feature = "typed")]
+    fn read_deserialized<'de, D: Deserialize<'de>>(&'doc self, query: &str) -> Result<Option<D>> {
+        let raw = self.read(query)?;
+
+        match raw {
+            Some(value) => {
+                let deserialized = value.clone().try_into()?;
+                Ok(Some(deserialized))
+            } 
+            None => Ok(None)
+        }
+    }
 }
 
 impl<'doc> TomlValueReadExt<'doc> for Value {
@@ -43,6 +57,7 @@ impl<'doc> TomlValueReadExt<'doc> for Value {
 
 }
 
+#[cfg(not(feature = "typed"))]
 pub trait TomlValueReadTypeExt<'doc> : TomlValueReadExt<'doc> {
     fn read_string(&'doc self, query: &str) -> Result<Option<String>>;
     fn read_int(&'doc self, query: &str)    -> Result<Option<i64>>;
@@ -50,6 +65,7 @@ pub trait TomlValueReadTypeExt<'doc> : TomlValueReadExt<'doc> {
     fn read_bool(&'doc self, query: &str)   -> Result<Option<bool>>;
 }
 
+#[cfg(not(feature = "typed"))]
 macro_rules! make_type_getter {
     ($fnname:ident, $rettype:ty, $typename:expr, $matcher:pat => $implementation:expr) => {
         fn $fnname(&'doc self, query: &str) -> Result<Option<$rettype>> {
@@ -62,6 +78,7 @@ macro_rules! make_type_getter {
     };
 }
 
+#[cfg(not(feature = "typed"))]
 impl<'doc, T> TomlValueReadTypeExt<'doc> for T
     where T: TomlValueReadExt<'doc>
 {
@@ -242,6 +259,7 @@ mod high_level_fn_test {
     use super::*;
     use toml::from_str as toml_from_str;
 
+    #[cfg(not(feature = "typed"))]
     #[test]
     fn test_read_table_value() {
         let toml : Value = toml_from_str(r#"
@@ -252,6 +270,19 @@ mod high_level_fn_test {
         let val = toml.read_int("table.a").unwrap();
 
         assert_eq!(val.unwrap(), 1);
+    }
+
+    #[cfg(feature = "typed")]
+    #[test]
+    fn test_name() {
+        let toml : Value = toml_from_str(r#"
+        [table]
+        a = 1
+        "#).unwrap();
+
+        let val: u32 = toml.read_deserialized("table.a").unwrap().unwrap();
+
+        assert_eq!(val, 1);
     }
 
 }
